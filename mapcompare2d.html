@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>2D plane map comparison</title>
+    <style>
+        body {
+            margin: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            background: #f0f0f0;
+        }
+
+        canvas {
+            margin: 1vw;
+            border: 0px solid #ccc;
+            background: #fff;
+        }
+
+        .toolbar {
+            display: flex;
+            flex-direction: column;
+            padding: 10px;
+            gap: 10px;
+            background: #ddd;
+            border-right: 1px solid #bbb;
+            height: 100vh;
+            box-sizing: border-box;
+        }
+
+        button {
+            padding: 0px;
+            font-size: 44px;
+            cursor: pointer;
+            background-color: transparent;
+            border-style: solid;
+            border-color: #666;
+            color: #666;
+            border-radius: 4px;
+            transition: background-color 0.2s ease;
+        }
+
+        button span {
+            color: #666;
+        }
+
+        button:hover,
+        button.active {
+            background-color: #bbb;
+            border-radius: 4px;
+        }
+
+        .main-content {
+            flex-grow: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .canvas-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .canvas-controls {
+            display: flex;
+            align-items: stretch;
+            gap: 10px;
+            width: 600px;
+            box-sizing: border-box;
+        }
+
+        .input-column {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            flex-grow: 1;
+        }
+
+        .canvas-controls textarea {
+            width: 100%;
+            height: 45px;
+            font-family: monospace;
+            font-size: 15px;
+            line-height: 1.4;
+            padding: 10px;
+            border: 1px solid #999;
+            border-radius: 4px;
+            background-color: #fdfdfd;
+            color: #222;
+            resize: vertical;
+            box-sizing: border-box;
+
+            white-space: pre;
+            overflow-x: auto;
+            overflow-y: auto;
+        }
+
+        .canvas-controls button {
+            height: auto;
+            align-self: stretch;
+            padding: 10px 20px;
+            font-size: 44px;
+            cursor: pointer;
+            box-sizing: border-box;
+        }
+    </style>
+</head>
+
+<template id="moveTemplate">
+    <div style="position: relative; width: 50px; height: 50px;">
+        <span style="font-size: 44px; position: absolute; top: -2px; left: 2px;">←</span>
+        <span style="font-size: 44px; position: absolute; top: -2px; left: 11px;">→</span>
+        <span style="font-size: 44px; position: absolute; top: -5px; left: 7px;">↑</span>
+        <span style="font-size: 44px; position: absolute; top: 4px; left: 7px;">↓</span>
+    </div>
+</template>
+
+<template id="changeTemplate">
+    <div style="position: relative; width: 50px; height: 50px;">
+        <span style="font-size: 44px; position: absolute; top: 3px; left: 6px;">→</span>
+        <span style="font-size: 44px; position: absolute; top: 0px; left: 2px;">↑</span>
+        <span class="custom-text" style="font-size: 10px; position: absolute; bottom: 0px; right: 0px;"></span>
+    </div>
+</template>
+
+<template id="lineTemplate">
+    <div style="position: relative; width: 50px; height: 50px;">
+        <span style="font-size: 44px; position: absolute; top: -2px; left: 12px;">─</span>
+        <span style="font-size: 11px; position: absolute; top: 17px; left: 34px;">●</span>
+        <span style="font-size: 11px; position: absolute; top: 17px; left: 6px;">●</span>
+    </div>
+</template>
+
+<template id="drawTemplate">
+    <div style="position: relative; width: 50px; height: 50px;">
+        <span style="font-size: 44px; position: absolute; top: -6px; left: 7px;">∿</span>
+        <span style="font-size: 11px; position: absolute; top: 20px; left: 34px;">●</span>
+        <span style="font-size: 11px; position: absolute; top: 14px; left: 6px;">●</span>
+    </div>
+</template>
+
+<body>
+    <div class="toolbar">
+        <button id="moveButton" onclick="setMouseOneAction(MouseOneAction.Drag)" title="Move (Shortcut: M)">
+            <div data-template="moveTemplate"></div>
+        </button>
+        <button id="lineButton" onclick="setMouseOneAction(MouseOneAction.Line)" title="Line (Shortcut: L)">
+            <div data-template="lineTemplate"></div>
+        </button>
+        <button id="brushButton" onclick="setMouseOneAction(MouseOneAction.Draw)" title="Brush (Shortcut: B)">
+            <div data-template="drawTemplate" title=""></div>
+        </button>
+        <button onclick="master.changeview(0)" title="Change view of Map 1 (Shortcut: 1)">
+            <div data-template="changeTemplate" data-text="1"></div>
+        </button>
+        <button onclick="master.changeview(1)" title="Change view of Map 2 (Shortcut: 2)">
+            <div data-template="changeTemplate" data-text="2"></div>
+        </button>
+    </div>
+    <div class="main-content">
+        <div class="canvas-wrapper">
+            <div class="canvas-controls">
+                <div class="input-column">
+                    <textarea autocomplete="off" id="map1_from" placeholder="real world coordinates to map coorinates"
+                        title="real world coordinates to map coorinates">(x; y) => (x; y)</textarea>
+                    <textarea autocomplete="off" id="map1_to" placeholder="map coordinates to real world coorinates"
+                        title="map coordinates to real world coorinates">(x; y) => (x; y)</textarea>
+                </div>
+                <button onclick="update_m1()" title="Update Map 1">↷</button>
+            </div>
+            <canvas id="c1" width="0" height="0"></canvas>
+        </div>
+        <div class="canvas-wrapper">
+            <div class="canvas-controls">
+                <div class="input-column">
+                    <textarea autocomplete="off" id="map2_from" placeholder="real world coordinates to map coorinates"
+                        title="real world coordinates to map coorinates">(x; y) => (sqrt(x*x+y*y); (atan2(y,x)+2*PI)%(2*PI))</textarea>
+                    <textarea autocomplete="off" id="map2_to" placeholder="map coordinates to real world coorinates"
+                        title="map coordinates to real world coorinates">(r; phi) => (r*cos(phi); r*sin(phi))</textarea>
+                </div>
+                <button onclick="update_m2()" title="Update Map 2">↷</button>
+            </div>
+            <canvas id="c2" width="0" height="0"></canvas>
+        </div>
+    </div>
+
+    <script>
+        const divs = document.querySelectorAll('div[data-template]');
+        divs.forEach(div => {
+            const templateId = div.getAttribute('data-template');
+            const customText = div.getAttribute('data-text');
+            const template = document.getElementById(templateId);
+            if (template) {
+                const clone = document.importNode(template.content, true);
+
+                if (customText) {
+                    const textSpan = clone.querySelector('.custom-text');
+                    if (textSpan) textSpan.textContent = customText;
+                }
+
+                div.replaceWith(clone);
+            } else {
+                console.warn(`Template with ID '${templateId}' not found.`);
+            }
+        });
+
+        const MouseOneAction = {
+            Drag: Symbol("Drag"),
+            Line: Symbol("Line"),
+            Draw: Symbol("Draw")
+        }
+        let midAction = false;
+        let mouseOneAction = null;
+
+        function setMouseOneAction(action) {
+            if (!midAction) {
+                mouseOneAction = action;
+                document.querySelectorAll('.toolbar button').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+                switch (action) {
+                    case MouseOneAction.Drag:
+                        document.getElementById("moveButton").classList.add("active");
+                        document.querySelectorAll("canvas").forEach((canvas) => canvas.style.cursor = 'move');
+                        break;
+                    case MouseOneAction.Line:
+                        document.getElementById("lineButton").classList.add("active");
+                        document.querySelectorAll("canvas").forEach((canvas) => canvas.style.cursor = 'crosshair');
+                        break;
+                    case MouseOneAction.Draw:
+                        document.getElementById("brushButton").classList.add("active");
+                        document.querySelectorAll("canvas").forEach((canvas) => canvas.style.cursor = 'crosshair');
+                        break;
+                }
+            }
+        }
+
+        setMouseOneAction(MouseOneAction.Line);
+
+        class vec2 {
+            constructor(x, y) {
+                this.x1 = x == undefined ? 0 : x;
+                this.x2 = y == undefined ? 0 : y;
+            }
+        }
+        function add(v1, v2) {
+            return new vec2(v1.x1 + v2.x1, v1.x2 + v2.x2);
+        }
+        function subtract(v1, v2) {
+            return new vec2(v1.x1 - v2.x1, v1.x2 - v2.x2);
+        }
+        function length(v) {
+            return Math.sqrt(v.x1 * v.x1 + v.x2 * v.x2)
+        }
+        function distance(v1, v2) {
+            return length(subtract(v1, v2));
+        }
+        function multiply(a, v) {
+            return new vec2(a * v.x1, a * v.x2);
+        }
+
+        const WIDTH = 600;
+        const HEIGHT = 600;
+
+        class Camera {
+            constructor(pos, size) {
+                this.pos = pos;
+                this.size = size;
+                if (pos == undefined) this.pos = new vec2(0, 0);
+                if (size == undefined) this.size = new vec2(10, 10);
+            }
+            p2c(p) {
+                return new vec2((p.x1 / WIDTH * 2 - 1) * this.size.x1 + this.pos.x1, -(p.x2 / HEIGHT * 2 - 1) * this.size.x2 + this.pos.x2);
+            }
+            c2p(c) {
+                return new vec2(((c.x1 - this.pos.x1) / this.size.x1 + 1) / 2 * WIDTH, (-(c.x2 - this.pos.x2) / this.size.x2 + 1) / 2 * HEIGHT);
+            }
+            translate(v) {
+                this.pos = add(this.pos, v);
+            }
+            scale(v) {
+                this.size = new vec2(v.x1 * this.size.x1, v.x2 * this.size.x2);
+            }
+        }
+
+        class Spline {
+            constructor(p1, p2) {
+                this.points = [];
+                if (p1 != undefined) this.points.push(new vec2(p1.x1, p1.x2));
+                if (p2 != undefined) this.points.push(new vec2(p2.x1, p2.x2));
+            }
+            add(point) {
+                this.points.push(point);
+            }
+            draw(context, camera) {
+                if (this.points.length < 2) return;
+                context.beginPath();
+                this.render(context, camera);
+                context.strokeStyle = 'red';
+                context.lineWidth = 2;
+                context.stroke();
+            }
+            get_alt(from, to) {
+                const spline = new Spline();
+                for (let i = 0; i < this.points.length; i++) {
+                    spline.points.push(from.from_cartesian(to.to_cartesian(this.points[i])));
+                }
+                return spline;
+            }
+            render(context, camera) {
+                let p = camera.c2p(this.points[0]);
+                context.moveTo(p.x1, p.x2);
+                // let sum = 0;
+                // for (let i = 0; i < this.points.length - 1; i++) {
+                //     sum += distance(this.points[i], this.points[i + 1]);
+                // }
+                // let avg = sum / this.points.length;
+                let avg = distance(this.points[0], this.points[1]);
+                const avg_coeff = 0.5;
+                for (let i = 1; i < this.points.length; i++) {
+                    p = camera.c2p(this.points[i]);
+                    const d = distance(this.points[i], this.points[i - 1]);
+                    if (d > 100 * avg) {
+                        context.moveTo(p.x1, p.x2);
+                    }
+                    else {
+                        context.lineTo(p.x1, p.x2);
+                        avg = avg_coeff * avg + (1 - avg_coeff) * d;
+                    }
+                }
+            }
+            subdivide(n) {
+                if (n == undefined) n = 1;
+                for (let i = 0; i < n; i++) {
+                    for (let j = 0; j < this.points.length - 1; j += 2) {
+                        this.points.splice(j + 1, 0, new vec2((this.points[j].x1 + this.points[j + 1].x1) / 2, (this.points[j].x2 + this.points[j + 1].x2) / 2));
+                    }
+                }
+            }
+        }
+
+        class Map {
+            constructor(from_cartesian, to_cartesian) {
+                this.from_cartesian = from_cartesian;
+                this.to_cartesian = to_cartesian;
+            }
+        }
+
+        class Line {
+            constructor(p1, p2) {
+                this.p1 = p1;
+                this.p2 = p2;
+            }
+            generate(map) {
+                let fid = 200 * distance(this.p1, this.p2) + 10;
+                fid = fid > 2000 ? 2000 : fid;
+                let spline = new Spline();
+                for (let i = 0; i <= fid; i++) {
+                    const t = i / fid;
+                    spline.points.push(map.from_cartesian(new vec2((1 - t) * this.p1.x1 + t * this.p2.x1, (1 - t) * this.p1.x2 + t * this.p2.x2)));
+                }
+                return spline;
+            }
+            r(t) {
+                return add(multiply(1 - t, this.p1), multiply(t, this.p2));
+            }
+        }
+
+        class Master {
+            constructor() {
+                this.scenes = [];
+                this.viewing = [];
+                this.lines = [];
+            }
+            subscribe(scene) {
+                this.scenes.push(scene);
+                scene.master = this;
+                this.viewing.push(this.scenes.length - 1);
+            }
+            add_line(line) {
+                this.lines.push(line);
+                this.scenes.forEach(scene => {
+                    scene.generate_spline(line);
+                });
+            }
+            draw_line(line) {
+                this.scenes.forEach(scene => {
+                    const spline = line.generate(scene.map);
+                    scene.draw();
+                    spline.draw(scene.context, scene.camera);
+                });
+            }
+            changeview(i) {
+                this.viewing[i] = (this.viewing[i] + 1) % this.viewing.length;
+                this.scenes[i].view_map = this.scenes[this.viewing[i]].map;
+                this.scenes[i].draw();
+            }
+            toggleview(i) {
+                this.scenes[i].view_map = this.scenes[i].view_map == undefined ? this.scenes[this.viewing[i]].map : undefined;
+            }
+        }
+
+        class Scene {
+            constructor(map, canvas, width, height) {
+                this.master = null;
+                this.view_map = map;
+                this.map = map;
+                this.canvas = canvas;
+                this.canvas.width = width != undefined ? width : WIDTH;
+                this.canvas.height = height != undefined ? height : HEIGHT;
+                this.context = this.canvas.getContext('2d');
+                this.camera = new Camera();
+                this.splines = [];
+
+                this.startPoint = null;
+                this.drawing = false;
+                this.dragging = false;
+                this.lastMousePos = new vec2();
+
+                this.canvas.addEventListener('mousedown', (e) => {
+                    if (e.button != 0) return;
+                    midAction = true;
+                    switch (mouseOneAction) {
+                        case MouseOneAction.Drag:
+                            this.dragging = true;
+                            this.lastMousePos = new vec2(e.clientX, e.clientY);
+                            break;
+                        case MouseOneAction.Line:
+                            {
+                                const rect = this.canvas.getBoundingClientRect();
+                                const x = e.clientX - rect.left;
+                                const y = e.clientY - rect.top;
+                                this.startPoint = this.camera.p2c(new vec2(x, y));
+                            }
+                            break;
+                        case MouseOneAction.Draw:
+                            {
+                                this.drawing = true;
+                                const rect = this.canvas.getBoundingClientRect();
+                                const x = e.clientX - rect.left;
+                                const y = e.clientY - rect.top;
+                                this.startPoint = this.camera.p2c(new vec2(x, y));
+                            }
+                            break;
+                    }
+                });
+
+                this.canvas.addEventListener('mousemove', (e) => {
+                    if (e.button != 0) return;
+                    switch (mouseOneAction) {
+                        case MouseOneAction.Drag:
+                            if (this.dragging) {
+                                const dx = e.clientX - this.lastMousePos.x1;
+                                const dy = e.clientY - this.lastMousePos.x2;
+                                const dc = subtract(this.camera.p2c(new vec2(this.lastMousePos.x1, this.lastMousePos.x2)), this.camera.p2c(new vec2(e.clientX, e.clientY)));
+                                this.camera.translate(dc);
+                                this.lastMousePos = new vec2(e.clientX, e.clientY);
+                                this.draw();
+                            }
+                            break;
+                        case MouseOneAction.Line:
+                            if (this.startPoint) {
+                                const rect = this.canvas.getBoundingClientRect();
+                                const x = e.clientX - rect.left;
+                                const y = e.clientY - rect.top;
+                                const line = new Line(this.map.to_cartesian(this.startPoint), this.map.to_cartesian(this.camera.p2c(new vec2(x, y))));
+                                master.draw_line(line);
+                            }
+                            break;
+                        case MouseOneAction.Draw:
+                            if (this.drawing) {
+                                const rect = this.canvas.getBoundingClientRect();
+                                const x = e.clientX - rect.left;
+                                const y = e.clientY - rect.top;
+                                const p = this.camera.p2c(new vec2(x, y));
+                                const line = new Line(this.map.to_cartesian(this.startPoint), this.map.to_cartesian(p));
+                                master.add_line(line);
+                                this.startPoint = p;
+                            }
+                            break;
+                    }
+                });
+
+                this.canvas.addEventListener('mouseup', (e) => {
+                    if (e.button != 0) return;
+                    midAction = false;
+                    switch (mouseOneAction) {
+                        case MouseOneAction.Drag:
+                            this.dragging = false;
+                            break;
+                        case MouseOneAction.Line:
+                            const rect = this.canvas.getBoundingClientRect();
+                            const x = e.clientX - rect.left;
+                            const y = e.clientY - rect.top;
+                            this.master.add_line(new Line(this.map.to_cartesian(this.startPoint), this.map.to_cartesian(this.camera.p2c(new vec2(x, y)))));
+                            this.startPoint = null;
+                            break;
+
+                        case MouseOneAction.Draw:
+                            this.drawing = false;
+                            this.startPoint = null;
+                            break;
+                    }
+                });
+
+                this.canvas.addEventListener('wheel', (e) => {
+                    const rect = this.canvas.getBoundingClientRect();
+                    const x = e.clientX - rect.left;
+                    const y = e.clientY - rect.top;
+                    const p = this.camera.p2c(new vec2(x, y));
+                    const delta = Math.pow(1.1, (e.deltaY == 0 ? 0 : e.deltaY > 0 ? 1 : -1));
+                    const v = multiply(1 - delta, subtract(p, this.camera.pos));
+                    this.camera.translate(v);
+                    const d = new vec2(delta, delta);
+                    this.camera.scale(d);
+                    this.draw();
+                });
+            }
+            draw_axes() {
+                this.context.beginPath();
+                let p = this.camera.c2p(new vec2(this.camera.pos.x1 - this.camera.size.x1, 0));
+                this.context.moveTo(p.x1, p.x2);
+                p = this.camera.c2p(new vec2(this.camera.pos.x1 + this.camera.size.x1, 0));
+                this.context.lineTo(p.x1, p.x2);
+                p = this.camera.c2p(new vec2(0, this.camera.pos.x2 - this.camera.size.x2));
+                this.context.moveTo(p.x1, p.x2);
+                p = this.camera.c2p(new vec2(0, this.camera.pos.x2 + this.camera.size.x2));
+                this.context.lineTo(p.x1, p.x2);
+                this.context.strokeStyle = "black";
+                this.context.lineWidth = 2;
+                this.context.stroke();
+            }
+            draw_grid() {
+                this.context.beginPath();
+                for (let x1 = Math.floor(this.camera.pos.x1 - this.camera.size.x1); x1 <= Math.ceil(this.camera.pos.x1 + this.camera.size.x1); x1++) {
+                    let p = this.camera.c2p(new vec2(x1, this.camera.pos.x2 - this.camera.size.x2));
+                    this.context.moveTo(p.x1, p.x2);
+                    p = this.camera.c2p(new vec2(x1, this.camera.pos.x2 + this.camera.size.x2));
+                    this.context.lineTo(p.x1, p.x2);
+                }
+                for (let x2 = Math.floor(this.camera.pos.x2 - this.camera.size.x2); x2 <= Math.ceil(this.camera.pos.x2 + this.camera.size.x2); x2++) {
+                    let p = this.camera.c2p(new vec2(this.camera.pos.x1 - this.camera.size.x1, x2));
+                    this.context.moveTo(p.x1, p.x2);
+                    p = this.camera.c2p(new vec2(this.camera.pos.x1 + this.camera.size.x1, x2));
+                    this.context.lineTo(p.x1, p.x2);
+                }
+                this.context.strokeStyle = 'gray';
+                this.context.lineWidth = 1;
+                this.context.stroke();
+            }
+            draw_alt(map) {
+                const sample = 10000;
+                let minvec = map.from_cartesian(this.map.to_cartesian(this.camera.pos));
+                let maxvec = map.from_cartesian(this.map.to_cartesian(this.camera.pos));
+                for (let i = 0; i < sample; i++) {
+                    const p = map.from_cartesian(this.map.to_cartesian(add(subtract(this.camera.pos, this.camera.size), new vec2((2 * this.camera.size.x1) * Math.random(), (2 * this.camera.size.x2) * Math.random()))));
+                    minvec = new vec2((p.x1 < minvec.x1 ? p.x1 : minvec.x1), (p.x2 < minvec.x2 ? p.x2 : minvec.x2));
+                    maxvec = new vec2((p.x1 > maxvec.x1 ? p.x1 : maxvec.x1), (p.x2 > maxvec.x2 ? p.x2 : maxvec.x2));
+                }
+                let delta = multiply(0.01, subtract(maxvec, minvec));
+                minvec = subtract(minvec, delta);
+                maxvec = add(maxvec, delta);
+                this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                this.draw_alt_grid(map, minvec, maxvec);
+                this.draw_alt_axes(map, minvec, maxvec);
+                this.draw_splines();
+            }
+            draw_alt_axes(map, minvec, maxvec) {
+                let n = 1000;
+                this.context.beginPath();
+                let x1 = new Line(new vec2(minvec.x1, 0), new vec2(maxvec.x1, 0));
+                let x1spline = new Spline();
+                for (let i = 0; i <= n; i++) {
+                    const p = this.map.from_cartesian(map.to_cartesian(x1.r(i / n)));
+                    x1spline.points.push(p);
+                }
+                let x2 = new Line(new vec2(0, minvec.x2), new vec2(0, maxvec.x2));
+                let x2spline = new Spline();
+                for (let i = 0; i <= n; i++) {
+                    const p = this.map.from_cartesian(map.to_cartesian(x2.r(i / n)));
+                    x2spline.points.push(p);
+                }
+                x1spline.render(this.context, this.camera);
+                x2spline.render(this.context, this.camera);
+                this.context.strokeStyle = 'black';
+                this.context.lineWidth = 2;
+                this.context.stroke();
+            }
+            draw_alt_grid(map, minvec, maxvec) {
+                let n = 1000;
+                this.context.beginPath();
+                for (let x1 = Math.ceil(minvec.x1); x1 < Math.floor(maxvec.x1); x1++) {
+                    let x2 = new Line(new vec2(x1, minvec.x2), new vec2(x1, maxvec.x2));
+                    let x2spline = new Spline();
+                    for (let i = 0; i <= n; i++) {
+                        const p = this.map.from_cartesian(map.to_cartesian(x2.r(i / n)));
+                        x2spline.points.push(p);
+                    }
+                    x2spline.render(this.context, this.camera);
+                }
+                for (let x2 = Math.ceil(minvec.x2); x2 < Math.floor(maxvec.x2); x2++) {
+                    let x1 = new Line(new vec2(minvec.x1, x2), new vec2(maxvec.x1, x2));
+                    let x1spline = new Spline();
+                    for (let i = 0; i <= n; i++) {
+                        const p = this.map.from_cartesian(map.to_cartesian(x1.r(i / n)));
+                        x1spline.points.push(p);
+                    }
+                    x1spline.render(this.context, this.camera);
+                }
+                this.context.strokeStyle = 'gray';
+                this.context.lineWidth = 1;
+                this.context.stroke();
+            }
+            generate_spline(line) {
+                this.splines.push(line.generate(this.map));
+                this.splines[this.splines.length - 1].draw(this.context, this.camera);
+            }
+            draw_splines() {
+                this.context.beginPath();
+                this.splines.forEach(spline => {
+                    spline.render(this.context, this.camera);
+                });
+                this.context.strokeStyle = 'red';
+                this.context.lineWidth = 2;
+                this.context.stroke();
+            }
+            draw_normal() {
+                this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                this.draw_grid();
+                this.draw_axes();
+                this.draw_splines();
+            }
+            draw() {
+                if (this.map == this.view_map || this.view_map == undefined) this.draw_normal();
+                else this.draw_alt(this.view_map);
+            }
+            _draw(map) {
+                if (map == this.map || map == undefined) this.draw_normal();
+                else this.draw_alt(map);
+            }
+            update_map(from_cartesian, to_cartesian) {
+                this.map.from_cartesian = from_cartesian;
+                this.map.to_cartesian = to_cartesian;
+                this.splines = [];
+                this.master.lines.forEach(line => {
+                    this.generate_spline(line);
+                });
+                this.draw();
+            }
+        }
+
+        let map1 = new Map((p) => new vec2(p.x1, p.x2), (p) => new vec2(p.x1, p.x2));
+        let map2 = new Map((p) => new vec2(length(p), (Math.atan2(p.x2, p.x1) + 2 * Math.PI) % (2 * (Math.PI))), (p) => new vec2(p.x1 * Math.cos(p.x2), p.x1 * Math.sin(p.x2)));
+        // map2 = new Map((p) => new vec2(p.x1 + Math.sin(p.x2), p.x2 + Math.sin(p.x1)),
+        //     (p) => {
+        //         let vn = new vec2(p.x1, p.x2);
+        //         for (let i = 0; i < 15; i++) {
+        //             const fvn = subtract(new vec2(vn.x1 + Math.sin(vn.x2), vn.x2 + Math.sin(vn.x1)), p);
+        //             vn = subtract(vn, multiply(0.8, fvn));
+        //         }
+        //         return vn;
+        //     }
+        // );
+
+        let scene1 = new Scene(map1, document.getElementById('c1'));
+        let scene2 = new Scene(map2, document.getElementById('c2'));
+        let master = new Master();
+
+        master.subscribe(scene1);
+        master.subscribe(scene2);
+
+        scene1.draw();
+        scene2.draw();
+
+        function getLastParenthesesContent(str) {
+            let closeIndex = str.lastIndexOf(')');
+            if (closeIndex === -1) return null;
+
+            let openIndex = -1;
+            let balance = 0;
+
+            for (let i = closeIndex; i >= 0; i--) {
+                if (str[i] === ')') {
+                    balance++;
+                } else if (str[i] === '(') {
+                    balance--;
+                    if (balance === 0) {
+                        openIndex = i;
+                        break;
+                    }
+                }
+            }
+
+            if (openIndex === -1) return null;
+
+            return str.slice(openIndex + 1, closeIndex);
+        }
+
+        function getFirstParenthesesContent(str) {
+            let openIndex = str.indexOf('(');
+            if (openIndex === -1) return null;
+
+            let balance = 0;
+            for (let i = openIndex; i < str.length; i++) {
+                if (str[i] === '(') {
+                    balance++;
+                } else if (str[i] === ')') {
+                    balance--;
+                    if (balance === 0) {
+                        return str.slice(openIndex + 1, i);
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        function parse(source) {
+            const nows = source.replace(/\s+/g, '');
+            const first_half = getFirstParenthesesContent(nows);
+            const second_half = getLastParenthesesContent(nows);
+            if (first_half.split(';').length != 2 || second_half.split(';').length != 2) return null;
+            if (nows !== `(${first_half})=>(${second_half})`) return null;
+            const ret = `(_vec2) => { with (Math) { ${first_half.split(';')[0]} = _vec2.x1; ${first_half.split(';')[1]} = _vec2.x2; return new vec2(${second_half.replace(/;/g, ',')}); } }`
+            // console.log(ret);
+            return ret;
+        }
+
+        function update_m1() {
+            try {
+                const from_cartesian_code = document.getElementById("map1_from").value;
+                const from_cartesian = eval(`(${parse(from_cartesian_code)})`);
+                if (typeof from_cartesian !== 'function') {
+                    throw new Error('Invalid function format. Accepted format is \'(<x1>; <x2>) => (<f_x1(x1,x2)>; <f_x2(x1,x2)>) \'');
+                }
+                from_cartesian(new vec2(0, 0));
+                const to_cartesian_code = document.getElementById("map1_to").value;
+                const to_cartesian = eval(`(${parse(to_cartesian_code)})`);
+                if (typeof to_cartesian !== 'function') {
+                    throw new Error('Invalid function format. Accepted format is \'(<x1>; <x2>) => (<f_x1(x1,x2)>; <f_x2(x1,x2)>) \'');
+                }
+                to_cartesian(new vec2(0, 0));
+                scene1.update_map(from_cartesian, to_cartesian);
+            } catch (err) {
+                window.alert(err);
+            }
+        }
+
+        function update_m2() {
+            try {
+                const from_cartesian_code = document.getElementById("map2_from").value;
+                const from_cartesian = eval(`(${parse(from_cartesian_code)})`);
+                if (typeof from_cartesian !== 'function') {
+                    throw new Error('Invalid function format. Accepted format is \'(<x1>; <x2>) => (<f_x1(x1,x2)>; <f_x2(x1,x2)>) \'');
+                }
+                from_cartesian(new vec2(0, 0));
+                const to_cartesian_code = document.getElementById("map2_to").value;
+                const to_cartesian = eval(`(${parse(to_cartesian_code)})`);
+                if (typeof to_cartesian !== 'function') {
+                    throw new Error('Invalid function format. Accepted format is \'(<x1>; <x2>) => (<f_x1(x1,x2)>; <f_x2(x1,x2)>) \'');
+                }
+                to_cartesian(new vec2(0, 0));
+                scene2.update_map(from_cartesian, to_cartesian);
+            } catch (err) {
+                window.alert(err);
+            }
+        }
+
+        window.addEventListener('keypress', (e) => {
+            const active = document.activeElement;
+            if (active && active.tagName === 'TEXTAREA') return;
+            switch (e.key) {
+                case 'm':
+                    setMouseOneAction(MouseOneAction.Drag);
+                    break;
+                case 'l':
+                    setMouseOneAction(MouseOneAction.Line);
+                    break;
+                case 'b':
+                    setMouseOneAction(MouseOneAction.Draw);
+                    break;
+                case '1':
+                    master.changeview(0);
+                    break;
+                case '2':
+                    master.changeview(1);
+                    break;
+            }
+        });
+
+    </script>
+</body>
+
+</html>
