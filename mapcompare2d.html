@@ -171,6 +171,29 @@
     </div>
 </template>
 
+<template id="eraseTemplate">
+    <svg width="4em" height="4em" viewBox="0,0,50,50">
+        <line x1="10" y1="38" x2="40" y2="38" stroke="#666" stroke-width="2" />
+        <line x1="10" y1="33" x2="15" y2="38" stroke="#666" stroke-width="2" />
+        <line x1="10" y1="33" x2="30" y2="13" stroke="#666" stroke-width="2" />
+        <line x1="25" y1="38" x2="40" y2="23" stroke="#666" stroke-width="2" />
+        <line x1="30" y1="13" x2="40" y2="23" stroke="#666" stroke-width="2" />
+        <line x1="17" y1="26" x2="27" y2="36" stroke="#666" stroke-width="2" />
+        <line x1="19" y1="24" x2="29" y2="34" stroke="#666" stroke-width="1" />
+        <circle cx="30" cy="13" stroke="#666" r="0.4" />
+        <circle cx="10" cy="33" stroke="#666" r="0.4" />
+        <circle cx="40" cy="23" stroke="#666" r="0.4" />
+    </svg>
+</template>
+
+<template id="resetTemplate">
+    <svg width="4em" height="4em" viewBox="0,0,50,50">
+        <circle cx="25" cy="25" r="15" fill="none" stroke="#666" stroke-width="4" stroke-dasharray="86"
+            stroke-dashoffset="-4" />
+        <line x1="39.56" y1="21.6" x2="39.6" y2="21.7" stroke="none" stroke-width="3" marker-end="url(#arrowhead)" />
+    </svg>
+</template>
+
 <body>
     <div class="toolbar">
         <button id="moveButton" onclick="setMouseOneAction(MouseOneAction.Drag)" title="Move (Shortcut: M)">
@@ -181,12 +204,18 @@
         </button>
         <button id="brushButton" onclick="setMouseOneAction(MouseOneAction.Draw)" title="Brush (Shortcut: B)">
             <div data-template="drawTemplate" title=""></div>
+            <button id="eraseButton" onclick="setMouseOneAction(MouseOneAction.Erase)" title="Eraser (Shortcut: E)">
+                <div data-template="eraseTemplate"></div>
+            </button>
         </button>
         <button onclick="master.changeview(0)" title="Change view of Map 1 (Shortcut: 1)">
             <div data-template="changeTemplate" data-text="1"></div>
         </button>
         <button onclick="master.changeview(1)" title="Change view of Map 2 (Shortcut: 2)">
             <div data-template="changeTemplate" data-text="2"></div>
+        </button>
+        <button onclick="master.reset()" title="Reset (Shortcut: R)">
+            <div data-template="resetTemplate"></div>
         </button>
     </div>
     <div class="main-content">
@@ -239,7 +268,8 @@
         const MouseOneAction = {
             Drag: Symbol("Drag"),
             Line: Symbol("Line"),
-            Draw: Symbol("Draw")
+            Draw: Symbol("Draw"),
+            Erase: Symbol("Erase")
         }
         let midAction = false;
         let mouseOneAction = null;
@@ -262,6 +292,10 @@
                     case MouseOneAction.Draw:
                         document.getElementById("brushButton").classList.add("active");
                         document.querySelectorAll("canvas").forEach((canvas) => canvas.style.cursor = 'crosshair');
+                        break;
+                    case MouseOneAction.Erase:
+                        document.getElementById("eraseButton").classList.add("active");
+                        document.querySelectorAll("canvas").forEach((canvas) => canvas.style.cursor = 'not-allowed');
                         break;
                 }
             }
@@ -424,6 +458,48 @@
             r(t) {
                 return add(multiply(1 - t, this.p1), multiply(t, this.p2));
             }
+            intersects(line) {
+                var det, gamma, lambda;
+                det = (this.p2.x1 - this.p1.x1) * (line.p2.x2 - line.p1.x2) - (line.p2.x1 - line.p1.x1) * (this.p2.x2 - this.p1.x2);
+                if (det === 0) {
+                    return false;
+                } else {
+                    lambda = ((line.p2.x2 - line.p1.x2) * (line.p2.x1 - this.p1.x1) + (line.p1.x1 - line.p2.x1) * (line.p2.x2 - this.p1.x2)) / det;
+                    gamma = ((this.p1.x2 - this.p2.x2) * (line.p2.x1 - this.p1.x1) + (this.p2.x1 - this.p1.x1) * (line.p2.x2 - this.p1.x2)) / det;
+                    return (0 < lambda && lambda < 1) && (0 < gamma && gamma < 1);
+                }
+            }
+            distance(p) {
+                var A = p.x1 - this.p1.x1;
+                var B = p.x2 - this.p1.x2;
+                var C = this.p2.x1 - this.p1.x1;
+                var D = this.p2.x2 - this.p1.x2;
+
+                var dot = A * C + B * D;
+                var len_sq = C * C + D * D;
+                var param = -1;
+                if (len_sq != 0)
+                    param = dot / len_sq;
+
+                var x1, x2;
+
+                if (param < 0) {
+                    x1 = this.p1.x1;
+                    x2 = this.p1.x2;
+                }
+                else if (param > 1) {
+                    x1 = this.p2.x1;
+                    x2 = this.p2.x2;
+                }
+                else {
+                    x1 = this.p1.x1 + param * C;
+                    x2 = this.p1.x2 + param * D;
+                }
+
+                var dx1 = p.x1 - x1;
+                var dx2 = p.x2 - x2;
+                return Math.sqrt(dx1 * dx1 + dx2 * dx2);
+            }
         }
 
         class Master {
@@ -456,15 +532,46 @@
                 this.scenes[i].view_map = this.scenes[this.viewing[i]].map;
                 this.scenes[i].draw();
             }
-            toggleview(i) {
-                this.scenes[i].view_map = this.scenes[i].view_map == undefined ? this.scenes[this.viewing[i]].map : undefined;
-            }
             setdim(width, height) {
                 WIDTH = width;
                 HEIGHT = height;
                 this.scenes.forEach(scene => {
                     scene.canvas.width = WIDTH;
                     scene.canvas.height = HEIGHT;
+                    scene.draw();
+                });
+            }
+            remove_intersecting(line) {
+                for (let i = 0; i < this.lines.length; i++) {
+                    if (this.lines[i].intersects(line)) {
+                        this.scenes.forEach(scene => {
+                            scene.splines.splice(i, 1);
+                            scene.draw();
+                        });
+                        this.lines.splice(i, 1);
+                    }
+                }
+            }
+            remove_at(p, epsilon) {
+                for (let i = 0; i < this.lines.length; i++) {
+                    if (this.lines[i].distance(p) < epsilon) {
+                        this.scenes.forEach(scene => {
+                            scene.splines.splice(i, 1);
+                            scene.draw();
+                        });
+                        this.lines.splice(i, 1);
+                    }
+                }
+            }
+            reset() {
+                this.lines = [];
+                for (let i = 0; i < this.viewing.length; i++){
+                    this.viewing[i] = i;
+                }
+                this.scenes.forEach(scene => {
+                    scene.view_map = scene.map;
+                    scene.splines = [];
+                    scene.camera = new Camera();
                     scene.draw();
                 });
             }
@@ -485,6 +592,7 @@
                 this.startPoint = null;
                 this.drawing = false;
                 this.dragging = false;
+                this.erasing = false;
                 this.lastMousePos = new vec2();
 
                 this.canvas.addEventListener('mousedown', (e) => {
@@ -506,6 +614,15 @@
                         case MouseOneAction.Draw:
                             {
                                 this.drawing = true;
+                                const rect = this.canvas.getBoundingClientRect();
+                                const x = e.clientX - rect.left;
+                                const y = e.clientY - rect.top;
+                                this.startPoint = this.camera.p2c(new vec2(x, y));
+                            }
+                            break;
+                        case MouseOneAction.Erase:
+                            {
+                                this.erasing = true;
                                 const rect = this.canvas.getBoundingClientRect();
                                 const x = e.clientX - rect.left;
                                 const y = e.clientY - rect.top;
@@ -548,6 +665,18 @@
                                 this.startPoint = p;
                             }
                             break;
+                        case MouseOneAction.Erase:
+                            if (this.erasing) {
+                                const rect = this.canvas.getBoundingClientRect();
+                                const x = e.clientX - rect.left;
+                                const y = e.clientY - rect.top;
+                                const p = this.camera.p2c(new vec2(x, y));
+                                const line = new Line(this.map.to_cartesian(this.startPoint), this.map.to_cartesian(p));
+                                //master.remove_intersecting(line);
+                                master.remove_at(this.map.to_cartesian(p), 0.01 * (this.camera.size.x1 + this.camera.size.x2));
+                                this.startPoint = p;
+                            }
+                            break;
                     }
                 });
 
@@ -565,9 +694,12 @@
                             this.master.add_line(new Line(this.map.to_cartesian(this.startPoint), this.map.to_cartesian(this.camera.p2c(new vec2(x, y)))));
                             this.startPoint = null;
                             break;
-
                         case MouseOneAction.Draw:
                             this.drawing = false;
+                            this.startPoint = null;
+                            break;
+                        case MouseOneAction.Erase:
+                            this.erasing = false;
                             this.startPoint = null;
                             break;
                     }
@@ -719,7 +851,7 @@
                 const digits_x1 = digits(maxvec.x1 - minvec.x1);
                 const step_x2 = step(maxvec.x2 - minvec.x2);
                 const substep_x2 = substep(maxvec.x2 - minvec.x2);
-                console.log(step_x2);
+                // console.log(step_x2);
                 const x2_start = minvec.x2 - minvec.x2 % step_x2;
                 const x2_end = maxvec.x2;
                 const digits_x2 = digits(maxvec.x2 - minvec.x2);
@@ -753,7 +885,7 @@
                     x2spline.render(this.context, this.camera);
                 }
                 const step_x2 = step(maxvec.x2 - minvec.x2);
-                console.log(step_x2);
+                // console.log(step_x2);
                 const x2_start = minvec.x2 - minvec.x2 % step_x2;
                 const x2_end = maxvec.x2;
                 for (let x2 = x2_start; x2 < x2_end; x2 += step_x2) {
@@ -785,7 +917,7 @@
                     x2spline.render(this.context, this.camera);
                 }
                 const step_x2 = substep(maxvec.x2 - minvec.x2);
-                console.log(step_x2);
+                // console.log(step_x2);
                 const x2_start = minvec.x2 - minvec.x2 % step_x2;
                 const x2_end = maxvec.x2;
                 for (let x2 = x2_start; x2 < x2_end; x2 += step_x2) {
@@ -968,6 +1100,12 @@
                     break;
                 case 'b':
                     setMouseOneAction(MouseOneAction.Draw);
+                    break;
+                case 'e':
+                    setMouseOneAction(MouseOneAction.Erase);
+                    break;
+                case 'r':
+                    master.reset();
                     break;
                 case '1':
                     master.changeview(0);
