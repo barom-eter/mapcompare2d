@@ -42,4 +42,4 @@ The button updates the map to use the inputted transformation functions. **Makin
 
 # project status
 
- The project itself is a html/javascript port of a university assignment I originally wrote using C++/OpenGL. I plan on expanding this project. Currently, this project is early into development, and is expected to receive frequent updates.
+ The project itself is a html/javascript port of a university assignment I originally wrote using C++/OpenGL. I plan on expanding it, but currently do not have the time to do so.
